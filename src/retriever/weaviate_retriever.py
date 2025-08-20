@@ -25,12 +25,21 @@ class Retriever(VectorStore):
         collection: The collection object retrieved from the Weaviate client.
 
     Methods:
-        similarity_search(query: str, source_ids: List[str], auto_merge: bool = False, k: int = 16, top_k: int = 5, alpha: float = 0.5) -> List[LcDocument]:
+        similarity_search(query: str, source_ids: List[str], auto_merge: bool = False, k: int = 16, top_k: int = 5, alpha: float = 0.5) -> List[Document]:
             Executes a hybrid search combining both keyword and vector similarity. It returns a ranked list of relevant documents.
-        max_marginal_relevance_search(query: str, source_ids: List[str], k: int = 5, fetch_k: int = 20, lambda_mult: float = 0.5) -> List[Tuple[LcDocument, float]]:
+
+        similarity_search_with_relevance_scores(query: str, source_ids: List[str], k: int = 5, alpha: float = 0.5) -> List[Tuple[Document, float]]:
+            Performs a similarity search and returns documents along with their relevance scores.
+
+        max_marginal_relevance_search(query: str, source_ids: List[str], k: int = 5, fetch_k: int = 20, lambda_mult: float = 0.5) -> List[Document]:
             Performs a search to return a diverse set of documents by balancing relevance with novelty to the query.
-        rerank_docs(query: str, docs: List[LcDocument], top_k: int) -> List[LcDocument]:
+
+        rerank_docs(query: str, docs: List[Document], top_k: int) -> List[Document]:
             Re-ranks a list of retrieved documents based on their relevance to the query using a cross-encoder model for improved accuracy.
+
+        as_retriever(**kwargs) -> VectorStoreRetriever:
+            Returns a retriever object for use with other LangChain components.
+            
         delete(source_id: str):
             Removes all documents associated with a specific source ID from the vector store.
     """

@@ -41,8 +41,11 @@ class DocumentProcessor:
 
     Methods:
         load_and_split(): Loads the document and splits it into chunks using a hybrid chunking strategy. The resulting chunks are stored in `self.chunks`.
+
         generate_embeddings(embedder: Embeddings): Creates embeddings for each document chunk using a specified embedding model. The embeddings are stored in `self.embeddings`.
+
         store_in_db(collection: Collection): Stores the chunks and their corresponding embeddings as data objects in the specified database collection.
+        
         process_document(embedder: Embeddings, client: WeaviateClient): Orchestrates the document processing workflow. Checks if the document already exists in the database. If not, it runs the full workflow: loading, splitting, embedding, and storing the data.
     """
     def __init__(self, doc_path: str, doc_id: str):
