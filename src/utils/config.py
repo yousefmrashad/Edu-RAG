@@ -39,4 +39,5 @@ DB_NAME = "Edu_RAG"
 
 # RAG
 FETCHING_LIMIT = 1024
+DOCUMENT_SEPERATOR = "\n\n---\n\n"
 # --------------------------------------------------------------------- #
