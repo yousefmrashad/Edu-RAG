@@ -60,7 +60,7 @@ The system consists of three main packages:
 
 ## Configuration
 
-Key configuration parameters are defined in `utils/config.py`:
+Key configuration parameters are defined in [`utils/config.py`](https://github.com/yousefmrashad/Edu-RAG/blob/master/src/utils/config.py):
 
 - `EMBEDDING_MODEL_NAME`: Qwen3-Embedding-0.6B for text vectorization
 - `LLM_MODEL_NAME`: Google Gemini 2.5 Pro for content generation
@@ -69,8 +69,8 @@ Key configuration parameters are defined in `utils/config.py`:
 
 ## Example Output
 
-The system generates structured educational lessons with proper citations, automatically saved to markdown files like `phishing_lesson.md`.
+The system generates structured educational lessons with proper citations, automatically saved to markdown files like [`phishing_lesson.md`](https://github.com/yousefmrashad/Edu-RAG/blob/master/src/phishing_lesson.md).
 
 **Notes**
 
-The complete pipeline is demonstrated in `src/pipeline.ipynb` which serves as both documentation and a runnable example.The system includes duplicate detection to skip already processed documents and uses hybrid chunking with metadata preservation for optimal retrieval performance.
+The complete pipeline is demonstrated in [`src/pipeline.ipynb`](https://github.com/yousefmrashad/Edu-RAG/blob/master/src/pipeline.ipynb) which serves as both documentation and a runnable example.The system includes duplicate detection to skip already processed documents and uses hybrid chunking with metadata preservation for optimal retrieval performance.
