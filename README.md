@@ -46,8 +46,8 @@ rag_chain = create_retrieval_chain(retriever, question_answer_chain)
 4. **Generate Educational Content**
 ```python
 async for chunk in rag_chain.astream({"input": query}):
-if "answer" in chunk:
-print(chunk["answer"], end="", flush=True)
+  if "answer" in chunk:
+    print(chunk["answer"], end="", flush=True)
 ```
 
 ## System Architecture
