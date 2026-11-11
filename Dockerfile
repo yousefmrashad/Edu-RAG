@@ -34,7 +34,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable --extra ingest
 
 USER app
-CMD ["celery", "-A", "edu_rag.worker:app", "worker", \
+CMD ["celery", "-A", "edu_rag.celery_app:app", "worker", \
      "-Q", "ingest", "--concurrency=1", "--prefetch-multiplier=1", \
      "--time-limit=1800", "--soft-time-limit=1500", \
      "--max-tasks-per-child=20", "--loglevel=INFO"]
