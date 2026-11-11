@@ -1,3 +1,19 @@
 prototyping.ipynb
 .env
 __pycache__
+
+# Python / uv
+.venv/
+dist/
+build/
+*.egg-info/
+.ruff_cache/
+.basedpyright/
+.pytest_cache/
+
+# Local data
+data/
+*.pdf
+
+# Local notes (design decisions, not shipped)
+notes/
