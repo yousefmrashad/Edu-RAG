@@ -10,18 +10,21 @@ SDK types stop at this module's edge; callers get :class:`Chunk` and
 :class:`LlmError`.
 """
 
-from __future__ import annotations
-
+import asyncio
 import logging
+import time
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, TypeVar, cast
 
 from openrouter import OpenRouter, components
 from openrouter.errors import OpenRouterError
 from openrouter.utils.retries import BackoffStrategy, RetryConfig
+from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T", bound=BaseModel)
 
 # {"role": "system" | "user" | "assistant", "content": "..."}
 Message = dict[str, str]
@@ -61,6 +64,39 @@ class Chunk:
     usage: Usage | None = None
 
 
+class TokenBucket:
+    """Async token bucket, one per process.
+
+    OpenRouter has no client-side quota, so requests are shaped locally. The
+    bucket bounds request *starts*: acquire one token per call, not per output
+    token, so a long stream cannot starve query planning.
+    """
+
+    def __init__(self, *, capacity: float, refill_per_second: float) -> None:
+        if capacity <= 0 or refill_per_second <= 0:
+            raise ValueError("capacity and refill rate must be positive")
+        self._capacity = capacity
+        self._rate = refill_per_second
+        self._tokens = capacity
+        self._updated = time.monotonic()
+        self._lock = asyncio.Lock()
+
+    async def acquire(self, tokens: float = 1.0) -> None:
+        while True:
+            async with self._lock:
+                now = time.monotonic()
+                self._tokens = min(
+                    self._capacity, self._tokens + (now - self._updated) * self._rate
+                )
+                self._updated = now
+                if self._tokens >= tokens:
+                    self._tokens -= tokens
+                    return
+                wait = (tokens - self._tokens) / self._rate
+            logger.warning("LLM rate limit reached, waiting %.2fs", wait)
+            await asyncio.sleep(wait)
+
+
 class OpenRouterClient:
     """Streaming chat client bound to one model and one API key."""
 
@@ -70,6 +106,7 @@ class OpenRouterClient:
         api_key: str,
         model: str,
         timeout: float = 120.0,
+        rate_limit_per_minute: float | None = None,
         referer: str | None = None,
         title: str | None = None,
         server_url: str | None = None,
@@ -80,6 +117,14 @@ class OpenRouterClient:
             raise ValueError("a generation model id is required")
 
         self._model = model
+        self._limiter = (
+            TokenBucket(
+                capacity=rate_limit_per_minute,
+                refill_per_second=rate_limit_per_minute / 60.0,
+            )
+            if rate_limit_per_minute is not None
+            else None
+        )
         self._sdk = OpenRouter(
             api_key=api_key,
             # Optional attribution, shown on the OpenRouter activity page.
@@ -103,6 +148,112 @@ class OpenRouterClient:
         """Release the SDK's HTTP connections."""
         await self._sdk.__aexit__(None, None, None)
 
+    async def complete(
+        self,
+        messages: Sequence[Message],
+        *,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> Chunk:
+        """Run one non-streamed completion and return it whole."""
+        chosen_model = model or self._model
+        logger.info(
+            "completion start model=%s messages=%d", chosen_model, len(messages)
+        )
+        if self._limiter is not None:
+            await self._limiter.acquire()
+        try:
+            result = await self._sdk.chat.send_async(
+                messages=cast(Any, list(messages)),
+                model=chosen_model,
+                stream=False,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except OpenRouterError as exc:
+            logger.warning("completion rejected: %s", _describe(exc))
+            raise LlmError(_describe(exc)) from exc
+
+        completion = cast(Any, result)
+        if not completion.choices:
+            raise LlmError(f"OpenRouter returned no choices for {chosen_model}")
+
+        choice = completion.choices[0]
+        finish_reason = (
+            str(choice.finish_reason) if choice.finish_reason is not None else None
+        )
+        usage = _usage_of(completion.usage)
+        logger.info(
+            "completion end model=%s finish_reason=%s usage=%s",
+            chosen_model,
+            finish_reason,
+            usage,
+        )
+        return Chunk(
+            text=_content_text(choice.message.content),
+            finish_reason=finish_reason,
+            usage=usage,
+        )
+
+    async def complete_structured(
+        self,
+        messages: Sequence[Message],
+        schema: type[T],
+        *,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> T:
+        """Run one completion constrained to ``schema`` and parse it."""
+        chosen_model = model or self._model
+        logger.info(
+            "structured completion start model=%s schema=%s messages=%d",
+            chosen_model,
+            schema.__name__,
+            len(messages),
+        )
+        response_format = components.ChatFormatJSONSchemaConfig(
+            type="json_schema",
+            json_schema=components.ChatJSONSchemaConfig(
+                name=schema.__name__[:64],
+                schema_=schema.model_json_schema(),
+                strict=True,
+            ),
+        )
+        if self._limiter is not None:
+            await self._limiter.acquire()
+        try:
+            result = await self._sdk.chat.send_async(
+                messages=cast(Any, list(messages)),
+                model=chosen_model,
+                stream=False,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_format=response_format,
+            )
+        except OpenRouterError as exc:
+            logger.warning("structured completion rejected: %s", _describe(exc))
+            raise LlmError(_describe(exc)) from exc
+
+        completion = cast(Any, result)
+        if not completion.choices:
+            raise LlmError(f"OpenRouter returned no choices for {chosen_model}")
+
+        text = _content_text(completion.choices[0].message.content)
+        try:
+            parsed = schema.model_validate_json(text)
+        except ValidationError as exc:
+            logger.warning("structured output failed validation: %s", exc)
+            raise LlmError(f"{schema.__name__} validation failed: {exc}") from exc
+        logger.info(
+            "structured completion end model=%s schema=%s usage=%s",
+            chosen_model,
+            schema.__name__,
+            _usage_of(completion.usage),
+        )
+        return parsed
+
     async def stream_chat(
         self,
         messages: Sequence[Message],
@@ -116,6 +267,8 @@ class OpenRouterClient:
         logger.info(
             "chat stream start model=%s messages=%d", chosen_model, len(messages)
         )
+        if self._limiter is not None:
+            await self._limiter.acquire()
         try:
             stream = await self._sdk.chat.send_async(
                 # The SDK types messages as its own pydantic union; plain dicts
@@ -161,6 +314,22 @@ class OpenRouterClient:
                 finish_reason,
                 usage,
             )
+
+
+def _content_text(content: object) -> str:
+    # A completion's content is either text or a list of content parts; the
+    # structured calls only ever ask for text.
+    return content if isinstance(content, str) else ""
+
+
+def _usage_of(usage: components.ChatUsage | None) -> Usage | None:
+    if usage is None:
+        return None
+    return Usage(
+        prompt_tokens=usage.prompt_tokens,
+        completion_tokens=usage.completion_tokens,
+        total_tokens=usage.total_tokens,
+    )
 
 
 def _to_chunks(event: components.ChatStreamChunk) -> list[Chunk]:
