@@ -549,6 +549,7 @@ dependencies = [
 [package.optional-dependencies]
 ingest = [
     { name = "docling" },
+    { name = "tokenizers" },
 ]
 
 [package.dev-dependencies]
@@ -571,6 +572,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.14.3" },
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.1.8" },
+    { name = "tokenizers", marker = "extra == 'ingest'", specifier = ">=0.21" },
 ]
 provides-extras = ["ingest"]
 
