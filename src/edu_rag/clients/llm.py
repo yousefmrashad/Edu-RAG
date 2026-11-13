@@ -14,7 +14,6 @@ import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator, Sequence
-from dataclasses import dataclass
 from typing import Any, TypeVar, cast
 
 from openrouter import OpenRouter, components
@@ -44,15 +43,15 @@ class LlmError(RuntimeError):
     """OpenRouter rejected the request, or the stream failed partway through."""
 
 
-@dataclass(frozen=True, slots=True)
-class Usage:
+class Usage(BaseModel):
+    """Token counts for one completion, as reported by OpenRouter."""
+
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
 
 
-@dataclass(frozen=True, slots=True)
-class Chunk:
+class Chunk(BaseModel):
     """One increment of a completion.
 
     ``text`` is usually set; ``finish_reason`` and ``usage`` only on the last
@@ -98,7 +97,11 @@ class TokenBucket:
 
 
 class OpenRouterClient:
-    """Streaming chat client bound to one model and one API key."""
+    """Streaming chat client bound to one model and one API key.
+
+    The rate limiter is owned by the caller, not built here: request budget is
+    a deployment concern, and one bucket can govern every client in a process.
+    """
 
     def __init__(
         self,
@@ -106,7 +109,7 @@ class OpenRouterClient:
         api_key: str,
         model: str,
         timeout: float = 120.0,
-        rate_limit_per_minute: float | None = None,
+        limiter: TokenBucket | None = None,
         referer: str | None = None,
         title: str | None = None,
         server_url: str | None = None,
@@ -117,14 +120,7 @@ class OpenRouterClient:
             raise ValueError("a generation model id is required")
 
         self._model = model
-        self._limiter = (
-            TokenBucket(
-                capacity=rate_limit_per_minute,
-                refill_per_second=rate_limit_per_minute / 60.0,
-            )
-            if rate_limit_per_minute is not None
-            else None
-        )
+        self._limiter = limiter
         self._sdk = OpenRouter(
             api_key=api_key,
             # Optional attribution, shown on the OpenRouter activity page.
