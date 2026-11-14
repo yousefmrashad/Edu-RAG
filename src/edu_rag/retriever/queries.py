@@ -30,7 +30,7 @@ from edu_rag.config import (
 
 logger = logging.getLogger(__name__)
 
-_PROMPT = Path(__file__).parent / "prompts" / "query_generation.md"
+_PROMPT = Path(__file__).parent.parent / "prompts" / "query_generation.md"
 
 
 class QueryType(StrEnum):
