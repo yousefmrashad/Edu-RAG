@@ -1,6 +1,10 @@
 """Query generation and hybrid retrieval."""
 
-from edu_rag.retriever.citations import Citation, resolve_citations
+from edu_rag.retriever.citations import (
+    Citation,
+    format_context,
+    resolve_citations,
+)
 from edu_rag.retriever.queries import (
     GeneratedQuery,
     QueryPlan,
@@ -15,6 +19,7 @@ __all__ = [
     "Hit",
     "QueryPlan",
     "QueryType",
+    "format_context",
     "generate_queries",
     "resolve_citations",
     "search",

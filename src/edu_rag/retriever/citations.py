@@ -1,8 +1,8 @@
-"""Resolve ``[n]`` citation markers in a generated answer to retrieved chunks.
+"""Number the context and resolve the answer's ``[n]`` markers back to chunks.
 
-The context is numbered 1..n in the order the chunks are given to the
-generator. This module reads the same markers back, so the API can send a
-citation list alongside the answer without parsing prose itself.
+Both directions live here because they share one contract: the chunks are
+numbered 1..n in the order given. ``format_context`` writes those numbers into
+the prompt, and ``resolve_citations`` reads them out of the answer.
 
 Only the markers the answer actually contains are returned, in first-citation
 order, deduplicated. Out-of-range numbers are dropped: the model occasionally
@@ -40,6 +40,23 @@ class Citation(BaseModel):
     page_start: int | None
     page_end: int | None
     text: str
+
+
+def format_context(chunks: Sequence[Chunk]) -> str:
+    """Render the chunks as numbered sources, matching the citation markers."""
+    blocks: list[str] = []
+    for index, chunk in enumerate(chunks, start=1):
+        heading = " > ".join(chunk.headings) if chunk.headings else "Untitled"
+        blocks.append(f"[{index}] {heading}{_page(chunk)}\n{chunk.text}")
+    return "\n\n".join(blocks)
+
+
+def _page(chunk: Chunk) -> str:
+    if chunk.page_start is None:
+        return ""
+    if chunk.page_end is None or chunk.page_end == chunk.page_start:
+        return f" (page {chunk.page_start})"
+    return f" (pages {chunk.page_start}-{chunk.page_end})"
 
 
 def resolve_citations(answer: str, chunks: Sequence[Chunk]) -> list[Citation]:
