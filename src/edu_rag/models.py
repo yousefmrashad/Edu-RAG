@@ -26,9 +26,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 from edu_rag.config import settings
 from edu_rag.db import Base
 
-DOCUMENT_STATUSES = ("uploaded", "processing", "ready", "failed")
-GENERATION_STATUSES = ("generating", "completed", "failed", "cancelled")
-
 
 class User(Base):
     __tablename__ = "users"
@@ -124,6 +121,8 @@ class Chunk(Base):
 
 
 class Generation(Base):
+    """One completion: the request that asked for it, the answer, and its metadata."""
+
     __tablename__ = "generations"
     __table_args__ = (
         CheckConstraint(
@@ -145,9 +144,15 @@ class Generation(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
     )
     status: Mapped[str] = mapped_column(Text, default="generating")
-    input: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
-    output: Mapped[str] = mapped_column(Text, default="")
-    result: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    # What was asked: query, source document ids, and per-call overrides.
+    request: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    # The answer as prose. Streamed, and never queried into.
+    answer: Mapped[str] = mapped_column(Text, default="")
+    # The answer as data: citations, retrieved chunks, finish reason. The column
+    # keeps the short name; the attribute cannot, since Base.metadata is taken.
+    answer_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, default=dict
+    )
     model: Mapped[str] = mapped_column(Text)
     usage: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     error: Mapped[str | None] = mapped_column(Text)
