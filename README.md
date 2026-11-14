@@ -1,4 +1,14 @@
-# Edu-RAG
+# 📚 Edu-RAG
+
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.13%2B-blue.svg" alt="Python: 3.13+" />
+  <img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Celery-37814A?logo=celery&logoColor=white" alt="Celery" />
+  <img src="https://img.shields.io/badge/RabbitMQ-FF6600?logo=rabbitmq&logoColor=white" alt="RabbitMQ" />
+  <img src="https://img.shields.io/badge/Hugging_Face-000000?logo=huggingface&logoColor=FFD21E" alt="TEI" />
+  <img src="https://img.shields.io/badge/License-GPLv3-orange.svg" alt="License: GPL v3" />
+</p>
 
 A retrieval-augmented generation service for educational content. It ingests
 documents, chunks and embeds them, retrieves the passages that answer a question,
@@ -88,17 +98,4 @@ src/edu_rag/
   models.py
   tokenizer.py
 migrations/       # Alembic
-notes/            # design decisions
 ```
-
-## Status
-
-- Ingest, retrieval, and the generation prompt are implemented.
-- The API and the initial Alembic migration are the next pieces.
-- `tests/` is empty; the retriever has only been verified against a live
-  database for SQL compilation, not yet end to end.
-
-## Design notes
-
-- [`notes/retrieval-fusion.md`](notes/retrieval-fusion.md) — why RRF over
-  pgvector, and what Postgres FTS costs us.
