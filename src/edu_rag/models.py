@@ -31,7 +31,10 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     email: Mapped[str] = mapped_column(Text, unique=True)
     password_hash: Mapped[str | None] = mapped_column(Text)
@@ -51,7 +54,10 @@ class Document(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     owner_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
@@ -65,7 +71,9 @@ class Document(Base):
     )
     # Kept only until the worker has embedded the file, then cleared.
     content: Mapped[bytes | None] = mapped_column(LargeBinary)
-    status: Mapped[str] = mapped_column(Text, default="uploaded")
+    status: Mapped[str] = mapped_column(
+        Text, default="uploaded", server_default=text("'uploaded'")
+    )
     error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -95,11 +103,17 @@ class Chunk(Base):
             postgresql_using="gin",
             postgresql_where=text("embedding IS NOT NULL"),
         ),
-        Index("chunks_document_ordinal_idx", "document_id", "ordinal"),
+        # Leaves are ordered; parents take their position from their children,
+        # so their ordinal is null and Postgres compares nulls as distinct.
+        # Doubles as the index the document_id cascade needs.
+        UniqueConstraint("document_id", "ordinal", name="chunks_document_ordinal_key"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     document_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE")
@@ -107,7 +121,7 @@ class Chunk(Base):
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("chunks.id", ondelete="CASCADE")
     )
-    ordinal: Mapped[int] = mapped_column(Integer)
+    ordinal: Mapped[int | None] = mapped_column(Integer)
     text: Mapped[str] = mapped_column(Text)
     headings: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
     page_start: Mapped[int | None] = mapped_column(Integer)
@@ -138,12 +152,17 @@ class Generation(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
     )
-    status: Mapped[str] = mapped_column(Text, default="generating")
+    status: Mapped[str] = mapped_column(
+        Text, default="generating", server_default=text("'generating'")
+    )
     # What was asked: query, source document ids, and per-call overrides.
     request: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     # The answer as prose. Streamed, and never queried into.
