@@ -49,7 +49,9 @@ class Settings(BaseSettings):
 
     # Retrieval
     chunk_size: int = 512
+    retrieve_queries: int = 6
     retrieve_candidates: int = 50
+    rrf_k: int = 30
     context_chunks: int = 6
 
     http_timeout: float = 30.0
