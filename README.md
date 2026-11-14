@@ -81,7 +81,7 @@ Copy `.env.example` to `.env`. The values that matter:
 | `RETRIEVE_QUERIES` | queries per question (default 6) |
 | `RETRIEVE_CANDIDATES` | candidates per retriever (default 50) |
 | `RRF_K` | RRF constant (default 30) |
-| `CONTEXT_CHUNKS` | chunks per query after reranking (default 6) |
+| `CONTEXT_CHUNKS` | chunks per query after reranking (default 15) |
 
 ## Project layout
 

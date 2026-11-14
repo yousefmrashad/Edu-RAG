@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     retrieve_queries: int = 6
     retrieve_candidates: int = 50
     rrf_k: int = 30
-    context_chunks: int = 6
+    context_chunks: int = 15
 
     http_timeout: float = 30.0
 
