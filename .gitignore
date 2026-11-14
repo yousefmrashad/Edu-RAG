@@ -15,5 +15,3 @@ build/
 data/
 *.pdf
 
-# Local notes (design decisions, not shipped)
-notes/
