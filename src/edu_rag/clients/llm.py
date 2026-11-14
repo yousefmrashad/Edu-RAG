@@ -149,8 +149,6 @@ class OpenRouterClient:
         messages: Sequence[Message],
         *,
         model: str | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
     ) -> Chunk:
         """Run one non-streamed completion and return it whole."""
         chosen_model = model or self._model
@@ -164,8 +162,6 @@ class OpenRouterClient:
                 messages=cast(Any, list(messages)),
                 model=chosen_model,
                 stream=False,
-                temperature=temperature,
-                max_tokens=max_tokens,
             )
         except OpenRouterError as exc:
             logger.warning("completion rejected: %s", _describe(exc))
@@ -198,8 +194,6 @@ class OpenRouterClient:
         schema: type[T],
         *,
         model: str | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
     ) -> T:
         """Run one completion constrained to ``schema`` and parse it."""
         chosen_model = model or self._model
@@ -224,8 +218,6 @@ class OpenRouterClient:
                 messages=cast(Any, list(messages)),
                 model=chosen_model,
                 stream=False,
-                temperature=temperature,
-                max_tokens=max_tokens,
                 response_format=response_format,
             )
         except OpenRouterError as exc:
@@ -255,8 +247,6 @@ class OpenRouterClient:
         messages: Sequence[Message],
         *,
         model: str | None = None,
-        temperature: float | None = None,
-        max_tokens: int | None = None,
     ) -> AsyncIterator[Chunk]:
         """Yield :class:`Chunk` objects as the completion arrives."""
         chosen_model = model or self._model
@@ -275,8 +265,6 @@ class OpenRouterClient:
                 stream=True,
                 # Without this a streamed response reports no token counts.
                 stream_options=components.ChatStreamOptions(include_usage=True),
-                temperature=temperature,
-                max_tokens=max_tokens,
             )
         except OpenRouterError as exc:
             logger.warning("chat stream rejected: %s", _describe(exc))

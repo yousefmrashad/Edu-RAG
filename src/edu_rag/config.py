@@ -40,8 +40,6 @@ class Settings(BaseSettings):
     # Generation
     openrouter_api_key: str = ""
     generation_model: str = ""
-    generation_temperature: float = 0.2
-    generation_max_tokens: int = 4_096
 
     # Embeddings. 1024 is harrier-oss-v1-0.6b's width and also the pgvector
     # column width, so changing models changes both places at once.
