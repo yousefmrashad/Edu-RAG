@@ -18,7 +18,7 @@ from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from edu_rag.clients.llm import LlmError, OpenRouterClient
 from edu_rag.config import (
@@ -65,7 +65,10 @@ class QueryPlan(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    queries: list[GeneratedQuery]
+    queries: list[GeneratedQuery] = Field(
+        max_length=settings.retrieve_queries,
+        description="The search queries to run, in priority order.",
+    )
 
 
 @lru_cache(maxsize=1)

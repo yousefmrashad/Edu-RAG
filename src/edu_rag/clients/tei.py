@@ -232,17 +232,31 @@ class TeiEmbedder:
             vectors.extend(_vectors(response.json(), self._dim))
         return vectors
 
+    async def embed_queries(
+        self, queries: Sequence[tuple[str, str]]
+    ) -> list[list[float]]:
+        """Embed several instructed queries in one request.
+
+        ``queries`` is ``(text, instruction)`` pairs. The instructions are
+        formatted into the model's prompt, so the whole batch is one payload
+        instead of one request per query.
+        """
+        texts = [_query_input(text, instruction) for text, instruction in queries]
+        vectors: list[list[float]] = []
+        for batch in _prepare(
+            texts, self._batch_tokens, self._max_input_tokens, self._count_tokens
+        ):
+            response = await _post(
+                self._http, "/embed", _embed_payload(batch), self._attempts
+            )
+            vectors.extend(_vectors(response.json(), self._dim))
+        return vectors
+
     async def embed_query(
         self, text: str, *, instruction: str | None = None
     ) -> list[float]:
         """Embed one query; ``instruction`` overrides the client's fallback."""
-        response = await _post(
-            self._http,
-            "/embed",
-            _embed_payload([_query_input(text, instruction or self._instruction)]),
-            self._attempts,
-        )
-        return _vectors(response.json(), self._dim)[0]
+        return (await self.embed_queries([(text, instruction or self._instruction)]))[0]
 
 
 class TeiReranker:

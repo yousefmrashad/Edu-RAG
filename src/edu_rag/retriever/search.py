@@ -11,7 +11,6 @@ The expansion is the reason there is no parent-chunk table: a group is
 
 from __future__ import annotations
 
-import asyncio
 import uuid
 from collections import Counter
 from collections.abc import Sequence
@@ -47,8 +46,8 @@ async def search(
     reranker: TeiReranker,
 ) -> list[Chunk]:
     """Run every query, expand, rerank, and return the deduplicated union."""
-    vectors = await asyncio.gather(
-        *(embedder.embed_query(q.query, instruction=q.instruction) for q in queries)
+    vectors = await embedder.embed_queries(
+        [(query.query, query.instruction) for query in queries]
     )
 
     merged: dict[uuid.UUID, Chunk] = {}
