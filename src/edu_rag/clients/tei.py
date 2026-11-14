@@ -261,7 +261,7 @@ class TeiReranker:
 
 
 class SyncTeiEmbedder:
-    """Blocking embedder for the Celery worker.
+    """Blocking embedder for the Celery worker, which only embeds documents.
 
     Construct it inside the task, after the process has forked: the pool
     belongs to the process that made it.
@@ -272,7 +272,6 @@ class SyncTeiEmbedder:
         base_url: str,
         *,
         embedding_dim: int,
-        instruction: str,
         timeout: float = 30.0,
         attempts: int = 5,
         batch_tokens: int = 16_384,
@@ -281,7 +280,6 @@ class SyncTeiEmbedder:
     ) -> None:
         self._http = httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout)
         self._dim = embedding_dim
-        self._instruction = instruction
         _check_attempts(attempts)
         self._attempts = attempts
         self._batch_tokens = batch_tokens
@@ -302,15 +300,6 @@ class SyncTeiEmbedder:
             )
             vectors.extend(_vectors(response.json(), self._dim))
         return vectors
-
-    def embed_query(self, text: str, *, instruction: str | None = None) -> list[float]:
-        response = _post_sync(
-            self._http,
-            "/embed",
-            _embed_payload([_query_input(text, instruction or self._instruction)]),
-            self._attempts,
-        )
-        return _vectors(response.json(), self._dim)[0]
 
 
 class SyncTeiReranker:

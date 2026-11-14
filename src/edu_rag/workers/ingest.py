@@ -147,7 +147,6 @@ def _embed(texts: list[str]) -> list[list[float]]:
     embedder = SyncTeiEmbedder(
         settings.embedder_url,
         embedding_dim=settings.embedding_dim,
-        instruction=settings.query_instruction,
         timeout=settings.http_timeout,
         count_tokens=count_tokens,
     )
