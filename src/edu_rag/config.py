@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # Generation
     openrouter_api_key: str = ""
     generation_model: str = ""
+    # Requests per minute per process. The bucket starts full, so this is also
+    # the burst size; the refill rate is one minute's worth.
+    llm_requests_per_minute: float = 30.0
 
     # Embeddings. 1024 is harrier-oss-v1-0.6b's width and also the pgvector
     # column width, so changing models changes both places at once.

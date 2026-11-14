@@ -77,6 +77,7 @@ Copy `.env.example` to `.env`. The values that matter:
 | `EMBEDDER_URL` / `RERANKER_URL` | TEI containers |
 | `OPENROUTER_API_KEY` | generation |
 | `GENERATION_MODEL` | OpenRouter model id |
+| `LLM_REQUESTS_PER_MINUTE` | local request shaping (default 30) |
 | `RETRIEVE_QUERIES` | queries per question (default 6) |
 | `RETRIEVE_CANDIDATES` | candidates per retriever (default 50) |
 | `RRF_K` | RRF constant (default 30) |
