@@ -84,28 +84,17 @@ class Document(Base):
 
 
 class Chunk(Base):
-    """A leaf chunk when embedded, a parent when ``embedding`` is null."""
+    """One embedded passage. Wider context is rebuilt from ``ordinal`` windows."""
 
     __tablename__ = "chunks"
-    # Both search indexes are partial: parent rows have no embedding and are
-    # never retrieved directly, only merged in after the leaves are ranked.
     __table_args__ = (
         Index(
             "chunks_embedding_hnsw",
             "embedding",
             postgresql_using="hnsw",
             postgresql_ops={"embedding": "vector_cosine_ops"},
-            postgresql_where=text("embedding IS NOT NULL"),
         ),
-        Index(
-            "chunks_tsv_gin",
-            "tsv",
-            postgresql_using="gin",
-            postgresql_where=text("embedding IS NOT NULL"),
-        ),
-        # Leaves are ordered; parents take their position from their children,
-        # so their ordinal is null and Postgres compares nulls as distinct.
-        # Doubles as the index the document_id cascade needs.
+        Index("chunks_tsv_gin", "tsv", postgresql_using="gin"),
         UniqueConstraint("document_id", "ordinal", name="chunks_document_ordinal_key"),
     )
 
@@ -118,17 +107,12 @@ class Chunk(Base):
     document_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE")
     )
-    parent_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("chunks.id", ondelete="CASCADE")
-    )
-    ordinal: Mapped[int | None] = mapped_column(Integer)
+    ordinal: Mapped[int] = mapped_column(Integer)
     text: Mapped[str] = mapped_column(Text)
     headings: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
     page_start: Mapped[int | None] = mapped_column(Integer)
     page_end: Mapped[int | None] = mapped_column(Integer)
-    embedding: Mapped[list[float] | None] = mapped_column(
-        Vector(settings.embedding_dim)
-    )
+    embedding: Mapped[list[float]] = mapped_column(Vector(settings.embedding_dim))
     tsv: Mapped[str] = mapped_column(
         TSVECTOR, Computed("to_tsvector('english', text)", persisted=True)
     )
