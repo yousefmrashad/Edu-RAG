@@ -60,7 +60,7 @@ class Document(Base):
         server_default=text("gen_random_uuid()"),
     )
     owner_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"),
     )
     sha256: Mapped[str] = mapped_column(String(64))
     title: Mapped[str] = mapped_column(Text)
