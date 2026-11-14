@@ -25,6 +25,10 @@ CMD ["uvicorn", "edu_rag.api:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # --- ingest ------------------------------------------------------------ #
 FROM base AS ingest-deps
+# paddlepaddle links against libgomp; opencv (via rapidocr) against glib.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev --extra ingest
 

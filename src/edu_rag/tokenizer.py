@@ -12,6 +12,7 @@ differ from the server's by a token or two. For a batch budget that is noise.
 from collections.abc import Sequence
 from functools import lru_cache
 
+from docling_core.transforms.chunker.tokenizer.base import BaseTokenizer
 from tokenizers import Tokenizer
 
 from edu_rag.config import settings
@@ -20,6 +21,26 @@ from edu_rag.config import settings
 @lru_cache(maxsize=1)
 def _tokenizer() -> Tokenizer:
     return Tokenizer.from_pretrained(settings.embedder_model)
+
+
+class ChunkerTokenizer(BaseTokenizer):
+    """The embedder's tokenizer, exposed to docling's chunker.
+
+    Docling wants a ``BaseTokenizer``; wrapping the same fast tokenizer the
+    embed batches are sized with keeps chunk boundaries and batch budgets
+    counting the same tokens.
+    """
+
+    max_tokens: int
+
+    def count_tokens(self, text: str) -> int:
+        return len(_tokenizer().encode(text, add_special_tokens=False).ids)
+
+    def get_max_tokens(self) -> int:
+        return self.max_tokens
+
+    def get_tokenizer(self) -> Tokenizer:
+        return _tokenizer()
 
 
 def count_tokens(texts: Sequence[str]) -> list[int]:

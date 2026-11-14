@@ -25,6 +25,7 @@ dependencies = [
 [project.optional-dependencies]
 ingest = [
     "docling>=2.150.0",
+    "paddlepaddle>=3.3",
     "tokenizers>=0.21",
 ]
 
