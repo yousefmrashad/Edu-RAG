@@ -20,6 +20,8 @@ from typing import Any
 
 import httpx
 
+from edu_rag.config import settings
+
 logger = logging.getLogger(__name__)
 
 # Counts equal-length to the inputs it is given.
@@ -187,14 +189,19 @@ def _post_sync(
 
 
 class TeiEmbedder:
-    """Embedding client. Documents are encoded bare; queries are instructed."""
+    """Embedding client. Documents are encoded bare; queries are instructed.
+
+    The instruction is per call, because each rewrite (plain question, topic,
+    HyDE passage) is a different kind of input. ``instruction`` here is only
+    the fallback for callers that do not pick one.
+    """
 
     def __init__(
         self,
         base_url: str,
         *,
         embedding_dim: int,
-        instruction: str,
+        instruction: str | None = None,
         timeout: float = 30.0,
         attempts: int = 5,
         batch_tokens: int = 16_384,
@@ -203,7 +210,7 @@ class TeiEmbedder:
     ) -> None:
         self._http = httpx.AsyncClient(base_url=base_url.rstrip("/"), timeout=timeout)
         self._dim = embedding_dim
-        self._instruction = instruction
+        self._instruction = instruction or settings.query_instruction
         _check_attempts(attempts)
         self._attempts = attempts
         self._batch_tokens = batch_tokens
@@ -228,6 +235,7 @@ class TeiEmbedder:
     async def embed_query(
         self, text: str, *, instruction: str | None = None
     ) -> list[float]:
+        """Embed one query; ``instruction`` overrides the client's fallback."""
         response = await _post(
             self._http,
             "/embed",
