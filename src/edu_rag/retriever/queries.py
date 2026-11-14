@@ -82,16 +82,22 @@ async def generate_queries(
     question: str,
     client: OpenRouterClient,
 ) -> list[GeneratedQuery]:
-    """Generate a query plan, falling back to the question itself."""
+    """Generate a query plan, retrying once, then falling back to the question."""
     messages = [
         {"role": "system", "content": _system_prompt()},
         {"role": "user", "content": question},
     ]
+    # A strict schema can reject a plan that overshoots the query cap; one
+    # resample is cheap, and the fallback is the question itself.
     try:
         plan = await client.complete_structured(messages, QueryPlan)
     except LlmError:
-        logger.exception("query generation failed; using the question")
-        return [_fallback(question)]
+        logger.warning("query generation failed; retrying once")
+        try:
+            plan = await client.complete_structured(messages, QueryPlan)
+        except LlmError:
+            logger.exception("query generation failed; using the question")
+            return [_fallback(question)]
 
     queries = _resolve(plan.queries)
     return queries or [_fallback(question)]

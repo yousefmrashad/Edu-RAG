@@ -1,5 +1,4 @@
-# 📚 Edu-RAG
-
+<h1 align="center">📚 Edu-RAG</h1>
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.13%2B-blue.svg" alt="Python: 3.13+" />
   <img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
