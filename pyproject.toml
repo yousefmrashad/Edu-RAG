@@ -62,7 +62,7 @@ indent-style = "space"
 # Types / tests
 
 [tool.basedpyright]
-include = ["src", "tests"]
+include = ["src", "tests", "migrations"]
 typeCheckingMode = "standard"
 reportMissingTypeStubs = false
 
