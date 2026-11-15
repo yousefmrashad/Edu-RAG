@@ -8,14 +8,13 @@ import logging
 import uuid
 from collections.abc import AsyncIterator, Sequence
 from datetime import UTC, datetime, timedelta
-from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from edu_rag.api.deps import (
@@ -40,6 +39,7 @@ from edu_rag.retriever import (
 logger = logging.getLogger(__name__)
 
 _PROMPT = Path(__file__).parent.parent / "prompts" / "generation.md"
+_GENERATION_PROMPT = _PROMPT.read_text(encoding="utf-8")
 
 router = APIRouter()
 
@@ -60,6 +60,17 @@ class GenerationOut(BaseModel):
     answer_metadata: dict[str, Any]
     model: str
     usage: dict[str, Any] | None
+    error: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class GenerationSummary(BaseModel):
+    """A history row: enough to pick a generation, without the answer."""
+
+    id: uuid.UUID
+    status: str
+    question: str
     error: str | None
     created_at: datetime
     updated_at: datetime
@@ -109,6 +120,24 @@ async def create_generation(
     )
 
 
+@router.get("/generations", response_model=list[GenerationSummary])
+async def list_generations(
+    session: SessionDep,
+    owner_id: OwnerDep,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[GenerationSummary]:
+    stmt = (
+        select(Generation)
+        .where(Generation.owner_id == owner_id)
+        .order_by(Generation.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    generations = (await session.scalars(stmt)).all()
+    return [_summary(generation) for generation in generations]
+
+
 @router.get("/generations/{generation_id}", response_model=GenerationOut)
 async def get_generation(
     generation_id: uuid.UUID,
@@ -154,6 +183,17 @@ async def _fail_if_stale(session: AsyncSession, generation: Generation) -> None:
     await session.refresh(generation)
 
 
+def _summary(generation: Generation) -> GenerationSummary:
+    return GenerationSummary(
+        id=generation.id,
+        status=generation.status,
+        question=generation.request.get("question", ""),
+        error=generation.error,
+        created_at=generation.created_at,
+        updated_at=generation.updated_at,
+    )
+
+
 async def _generation_stream(
     generation_id: uuid.UUID,
     question: str,
@@ -191,7 +231,7 @@ async def _generation_stream(
     messages = [
         {
             "role": "user",
-            "content": _generation_prompt().format(
+            "content": _GENERATION_PROMPT.format(
                 context=format_context(chunks),
                 question=question,
             ),
@@ -275,8 +315,3 @@ async def _finish(
 
 def _sse(event: str, data: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
-
-
-@lru_cache(maxsize=1)
-def _generation_prompt() -> str:
-    return _PROMPT.read_text(encoding="utf-8")
