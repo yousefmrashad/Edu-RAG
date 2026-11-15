@@ -41,28 +41,43 @@ answer streams over SSE; a final event carries the citations resolved from the
 
 ## Quick start
 
+You need Docker with the Compose plugin, and an NVIDIA GPU with the container
+toolkit: both TEI containers request `gpus: all` and run a CUDA image. Together
+they use a few GB of VRAM. The `latest` tag is the Ampere 8.0 build; use the
+tag for your card (`86-1.9` for Ampere 8.6, `89-1.9` for Ada, ...) or
+`cpu-latest` to run without a GPU.
+
 ```bash
 cp .env.example .env
 # fill in OPENROUTER_API_KEY and GENERATION_MODEL
-uv sync
+docker compose up -d postgres rabbitmq
+docker compose run --rm api alembic upgrade head   # first run only
 docker compose up -d
 ```
 
-The API will listen on `http://localhost:8000`; RabbitMQ's management UI is on
-`http://localhost:15672` (`edu` / `edu`).
+The last step starts Postgres, RabbitMQ, both TEI containers, the API, and the
+ingest worker. The API listens on `http://localhost:8000`; RabbitMQ's
+management UI is on `http://localhost:15672` (`edu` / `edu`). [API](#api) has a
+request that goes from upload to streamed answer.
 
-Run the two processes locally:
+The migration creates the `vector` extension and the three tables, so
+`alembic upgrade head` is the only schema step.
+
+## Local development
+
+Run the infrastructure in Docker and the app on the host:
 
 ```bash
+docker compose up -d postgres rabbitmq tei-embedder tei-reranker
+uv sync --extra ingest
+alembic upgrade head
 uvicorn edu_rag.api:app --reload
 celery -A edu_rag.celery_app:app worker -Q ingest --concurrency=1
 ```
 
-Apply the schema once the initial migration exists:
-
-```bash
-alembic upgrade head
-```
+`--extra ingest` is what the worker needs (docling, Paddle); the API itself
+only needs the core dependencies. Both processes read `.env`, which points at
+`localhost`.
 
 ## Configuration
 
@@ -95,12 +110,53 @@ auth: the caller is trusted and the header selects the tenant.
 | `GET` | `/documents` | list, newest first |
 | `GET` | `/documents/{id}` | one document |
 | `POST` | `/generations` | stream one answer |
+| `GET` | `/generations` | list, newest first |
 | `GET` | `/generations/{id}` | read a finished answer |
 | `GET` | `/health` | liveness |
 
-`POST /generations` returns `text/event-stream` and sets `X-Generation-Id`. The
-events are `generation` (the id), `delta` (answer text), and `citations` (last).
-A failure ends the stream with `error` instead.
+### End to end
+
+`lesson.pdf` is any file docling handles — PDF, DOCX, HTML, Markdown, images.
+
+```bash
+OWNER=$(python -c "import uuid; print(uuid.uuid4())")
+
+# 1. Upload. 201 with the document id, or 200 if the same bytes already exist.
+curl -s -X POST http://localhost:8000/documents \
+  -H "X-Owner-Id: $OWNER" \
+  -F "file=@lesson.pdf" \
+  -F "title=Lesson 1"
+
+# 2. Poll until status is "ready" (uploaded -> processing -> ready).
+curl -s http://localhost:8000/documents/<document-id> -H "X-Owner-Id: $OWNER"
+
+# 3. Ask. -N disables curl's output buffering, which SSE needs.
+curl -N -X POST http://localhost:8000/generations \
+  -H "X-Owner-Id: $OWNER" \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What is phishing?"}'
+```
+
+The response to step 3 is `text/event-stream` and carries `X-Generation-Id` in
+its headers (`curl -D -` prints them):
+
+```
+event: generation
+data: {"id": "9b1e..."}
+
+event: delta
+data: {"text": "Phishing is"}
+
+event: delta
+data: {"text": " a social-engineering attack."}
+
+event: citations
+data: {"citations": [{"index": 1, "chunk_id": "...", "document_id": "...", "ordinal": 4, "headings": ["Phishing"], "page_start": 2, "page_end": 2, "text": "..."}]}
+```
+
+The events are `generation` (the id), `delta` (answer text), and `citations`
+(last). A failure ends the stream with `error` instead; the row is marked
+`failed` and `GET /generations/{id}` returns it.
 
 ## Project layout
 
