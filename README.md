@@ -43,9 +43,9 @@ answer streams over SSE; a final event carries the citations resolved from the
 
 You need Docker with the Compose plugin, and an NVIDIA GPU with the container
 toolkit: both TEI containers request `gpus: all` and run a CUDA image. Together
-they use a few GB of VRAM. The `latest` tag is the Ampere 8.0 build; use the
-tag for your card (`86-1.9` for Ampere 8.6, `89-1.9` for Ada, ...) or
-`cpu-latest` to run without a GPU.
+they use a few GB of VRAM. Pick the image tag that matches your card — or
+`cpu-latest` to run without a GPU — from the
+[TEI supported-hardware table](https://huggingface.co/docs/text-embeddings-inference/supported_models).
 
 ```bash
 cp .env.example .env
@@ -76,7 +76,8 @@ celery -A edu_rag.celery_app:app worker -Q ingest --concurrency=1
 ```
 
 `--extra ingest` is what the worker needs (docling, Paddle); the API itself
-only needs the core dependencies. Both processes read `.env`, which points at
+only needs the core dependencies. `uvicorn` blocks, so start the Celery
+command in a second terminal. Both processes read `.env`, which points at
 `localhost`.
 
 ## Configuration
