@@ -25,9 +25,9 @@ CMD ["uvicorn", "edu_rag.api:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # --- ingest ------------------------------------------------------------ #
 FROM base AS ingest-deps
-# paddlepaddle links against libgomp; opencv (via rapidocr) against glib.
+# paddle's libcommon.so needs libgomp.so.1, which the wheel does not bundle.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgomp1 libglib2.0-0 \
+    && apt-get install -y --no-install-recommends libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev --extra ingest
