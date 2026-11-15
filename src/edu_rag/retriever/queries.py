@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 from enum import StrEnum
-from functools import lru_cache
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -31,6 +30,9 @@ from edu_rag.config import (
 logger = logging.getLogger(__name__)
 
 _PROMPT = Path(__file__).parent.parent / "prompts" / "query_generation.md"
+_SYSTEM_PROMPT = _PROMPT.read_text(encoding="utf-8").format(
+    max_queries=settings.retrieve_queries
+)
 
 
 class QueryType(StrEnum):
@@ -71,20 +73,13 @@ class QueryPlan(BaseModel):
     )
 
 
-@lru_cache(maxsize=1)
-def _system_prompt() -> str:
-    return _PROMPT.read_text(encoding="utf-8").format(
-        max_queries=settings.retrieve_queries
-    )
-
-
 async def generate_queries(
     question: str,
     client: OpenRouterClient,
 ) -> list[GeneratedQuery]:
     """Generate a query plan, retrying once, then falling back to the question."""
     messages = [
-        {"role": "system", "content": _system_prompt()},
+        {"role": "system", "content": _SYSTEM_PROMPT},
         {"role": "user", "content": question},
     ]
     # A strict schema can reject a plan that overshoots the query cap; one
