@@ -2,10 +2,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.13%2B-blue.svg" alt="Python: 3.13+" />
   <img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
-  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL" />
-  <img src="https://img.shields.io/badge/Celery-37814A?logo=celery&logoColor=white" alt="Celery" />
-  <img src="https://img.shields.io/badge/RabbitMQ-FF6600?logo=rabbitmq&logoColor=white" alt="RabbitMQ" />
-  <img src="https://img.shields.io/badge/Hugging_Face-000000?logo=huggingface&logoColor=FFD21E" alt="TEI" />
+  <img src="https://img.shields.io/badge/pgvector-4169E1?logo=postgresql&logoColor=white" alt="pgvector" />
+  <img src="https://img.shields.io/badge/TEI-000000?logo=huggingface&logoColor=FFD21E" alt="TEI" />
   <img src="https://img.shields.io/badge/License-GPLv3-orange.svg" alt="License: GPL v3" />
 </p>
 
