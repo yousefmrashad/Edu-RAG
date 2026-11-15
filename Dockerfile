@@ -10,7 +10,8 @@ ENV PYTHONUNBUFFERED=1 \
 RUN useradd --create-home --uid 10001 app
 
 # Dependencies only, so this layer is cached until the lockfile changes.
-COPY pyproject.toml uv.lock ./
+# The project metadata points at both files, so the build needs them too.
+COPY pyproject.toml uv.lock README.md LICENSE ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev
 
@@ -19,6 +20,9 @@ FROM base AS api
 COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable
+# Alembic reads these at runtime; the installed package is not enough.
+COPY alembic.ini ./
+COPY migrations ./migrations
 
 USER app
 CMD ["uvicorn", "edu_rag.api:app", "--host", "0.0.0.0", "--port", "8000"]
