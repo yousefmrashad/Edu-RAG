@@ -33,7 +33,7 @@ from docling.document_converter import (
 from docling_core.transforms.chunker.doc_chunk import DocChunk
 from docling_core.transforms.chunker.hybrid_chunker import HybridChunker
 
-from edu_rag.celery_app import app
+from edu_rag.celery_app import INGEST_TASK, app
 from edu_rag.clients.tei import SyncTeiEmbedder
 from edu_rag.config import settings
 from edu_rag.db import get_sync_session
@@ -156,7 +156,7 @@ def _embed(texts: list[str]) -> list[list[float]]:
         embedder.close()
 
 
-@app.task(name="edu_rag.workers.ingest.ingest_document")
+@app.task(name=INGEST_TASK)
 def ingest_document(document_id: str) -> None:
     """Parse, chunk, embed and store one document. Safe to call twice."""
     with get_sync_session()() as session:

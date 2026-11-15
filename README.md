@@ -81,6 +81,26 @@ Copy `.env.example` to `.env`. The values that matter:
 | `RETRIEVE_AUTO_MERGE` | expand to whole chunk groups (default true) |
 | `RRF_K` | RRF constant (default 30) |
 | `CONTEXT_CHUNKS` | chunks per query after reranking (default 15) |
+| `MAX_UPLOAD_BYTES` | upload cap (default 100 MiB) |
+| `GENERATION_STALE_AFTER_SECONDS` | cutoff for dead generations (default 900) |
+
+## API
+
+Every route except `/health` requires `X-Owner-Id: <uuid>`. There is no local
+auth: the caller is trusted and the header selects the tenant.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/documents` | upload (`file`, optional `title`), queues ingest |
+| `GET` | `/documents` | list, newest first |
+| `GET` | `/documents/{id}` | one document |
+| `POST` | `/generations` | stream one answer |
+| `GET` | `/generations/{id}` | read a finished answer |
+| `GET` | `/health` | liveness |
+
+`POST /generations` returns `text/event-stream` and sets `X-Generation-Id`. The
+events are `generation` (the id), `delta` (answer text), and `citations` (last).
+A failure ends the stream with `error` instead.
 
 ## Project layout
 

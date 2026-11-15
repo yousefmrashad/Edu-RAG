@@ -4,6 +4,10 @@ from celery import Celery
 
 from edu_rag.config import settings
 
+# Shared with the API, which dispatches by name and cannot import the worker:
+# the API image does not install the ingest extra.
+INGEST_TASK = "edu_rag.workers.ingest.ingest_document"
+
 app = Celery(
     "edu_rag",
     broker=settings.celery_broker_url,

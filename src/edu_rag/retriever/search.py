@@ -44,15 +44,19 @@ async def search(
     owner_id: uuid.UUID,
     embedder: TeiEmbedder,
     reranker: TeiReranker,
+    document_ids: Sequence[uuid.UUID] | None = None,
 ) -> list[Chunk]:
-    """Run every query, optionally expand, rerank, and return the union."""
+    """Run every query, optionally expand, rerank, and return the union.
+
+    Only chunks from ``document_ids`` are considered when it is given.
+    """
     vectors = await embedder.embed_queries(
         [(query.query, query.instruction) for query in queries]
     )
 
     merged: dict[uuid.UUID, Chunk] = {}
     for query, vector in zip(queries, vectors, strict=True):
-        hits = await _hybrid(session, query.query, vector, owner_id)
+        hits = await _hybrid(session, query.query, vector, owner_id, document_ids)
         if settings.retrieve_auto_merge:
             candidates = await _auto_merge(session, hits)
         else:
@@ -67,11 +71,16 @@ async def _hybrid(
     query: str,
     vector: list[float],
     owner_id: uuid.UUID,
+    document_ids: Sequence[uuid.UUID] | None = None,
 ) -> list[Hit]:
     """Vector + full-text candidates, fused by reciprocal rank."""
     tsquery = func.plainto_tsquery("english", query)
     distance = Chunk.embedding.cosine_distance(vector)
     rank = func.ts_rank_cd(Chunk.tsv, tsquery).desc()
+
+    conditions = [Document.owner_id == owner_id, Document.status == "ready"]
+    if document_ids:
+        conditions.append(Chunk.document_id.in_(document_ids))
 
     vec = (
         select(
@@ -79,7 +88,7 @@ async def _hybrid(
             func.row_number().over(order_by=distance).label("r"),
         )
         .join(Document, Document.id == Chunk.document_id)
-        .where(Document.owner_id == owner_id, Document.status == "ready")
+        .where(*conditions)
         .order_by(distance)
         .limit(settings.retrieve_candidates)
         .cte("vec")
@@ -90,11 +99,7 @@ async def _hybrid(
             func.row_number().over(order_by=rank).label("r"),
         )
         .join(Document, Document.id == Chunk.document_id)
-        .where(
-            Document.owner_id == owner_id,
-            Document.status == "ready",
-            Chunk.tsv.op("@@")(tsquery),
-        )
+        .where(*conditions, Chunk.tsv.op("@@")(tsquery))
         .order_by(rank)
         .limit(settings.retrieve_candidates)
         .cte("kw")

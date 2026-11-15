@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     # the burst size; the refill rate is one minute's worth.
     llm_requests_per_minute: float = 30.0
 
+    # API
+    max_upload_bytes: int = 100 * 1024 * 1024
+    # A generation left in `generating` for longer than this was interrupted,
+    # not still running: the stream that owned it is gone.
+    generation_stale_after_seconds: int = 900
+
     # Embeddings. 1024 is harrier-oss-v1-0.6b's width and also the pgvector
     # column width, so changing models changes both places at once.
     embedding_dim: int = 1024

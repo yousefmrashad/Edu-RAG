@@ -27,22 +27,6 @@ from edu_rag.config import settings
 from edu_rag.db import Base
 
 
-class User(Base):
-    __tablename__ = "users"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4,
-        server_default=text("gen_random_uuid()"),
-    )
-    email: Mapped[str] = mapped_column(Text, unique=True)
-    password_hash: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-
-
 class Document(Base):
     __tablename__ = "documents"
     __table_args__ = (
@@ -59,10 +43,8 @@ class Document(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    owner_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-    )
+    # Supplied by the caller; there is no local users table.
+    owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     sha256: Mapped[str] = mapped_column(String(64))
     title: Mapped[str] = mapped_column(Text)
     source_url: Mapped[str | None] = mapped_column(Text)
@@ -128,7 +110,7 @@ class Generation(Base):
             "status IN ('generating', 'completed', 'failed', 'cancelled')",
             name="generations_status_check",
         ),
-        Index("generations_user_created_idx", "user_id", "created_at"),
+        Index("generations_owner_created_idx", "owner_id", "created_at"),
         Index(
             "generations_generating_idx",
             "updated_at",
@@ -142,9 +124,7 @@ class Generation(Base):
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
-    )
+    owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     status: Mapped[str] = mapped_column(
         Text, default="generating", server_default=text("'generating'")
     )
