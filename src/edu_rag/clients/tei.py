@@ -45,7 +45,12 @@ class TeiError(RuntimeError):
     """A TEI request failed, or failed permanently after retrying."""
 
 
-def _estimate_tokens(text: str) -> int:
+def estimate_tokens(text: str) -> int:
+    """Rough token count, for callers with no tokenizer at hand.
+
+    Four characters per token is the usual English ratio; the API uses this to
+    reject a question the embedder would have to truncate.
+    """
     return len(text) // CHARS_PER_TOKEN + 1
 
 
@@ -59,7 +64,7 @@ def _prepare(
     sizes = (
         list(count_tokens(texts))
         if count_tokens is not None
-        else [_estimate_tokens(text) for text in texts]
+        else [estimate_tokens(text) for text in texts]
     )
     if len(sizes) != len(texts):
         raise ValueError(f"counted {len(sizes)} inputs, got {len(texts)} to batch")

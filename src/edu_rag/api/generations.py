@@ -13,7 +13,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,7 +25,7 @@ from edu_rag.api.deps import (
     SessionDep,
 )
 from edu_rag.clients.llm import LlmError, OpenRouterClient, Usage
-from edu_rag.clients.tei import TeiEmbedder, TeiReranker
+from edu_rag.clients.tei import TeiEmbedder, TeiReranker, estimate_tokens
 from edu_rag.config import settings
 from edu_rag.db import get_async_session
 from edu_rag.models import Generation
@@ -45,8 +45,25 @@ router = APIRouter()
 
 
 class GenerationCreate(BaseModel):
-    question: str = Field(min_length=1, max_length=2_000)
+    question: str = Field(min_length=1)
     document_ids: list[uuid.UUID] | None = None
+
+    @field_validator("question")
+    @classmethod
+    def _fits_the_embedder(cls, question: str) -> str:
+        """Reject what the embedder would silently truncate.
+
+        The question becomes a query, so it lives inside the same window the
+        embedder truncates at. Estimated here because the API image has no
+        tokenizer.
+        """
+        tokens = estimate_tokens(question)
+        if tokens > settings.max_input_tokens:
+            raise ValueError(
+                f"question is about {tokens} tokens; the limit is "
+                f"{settings.max_input_tokens}"
+            )
+        return question
 
 
 class GenerationOut(BaseModel):
