@@ -78,6 +78,7 @@ Copy `.env.example` to `.env`. The values that matter:
 | `LLM_REQUESTS_PER_MINUTE` | local request shaping (default 30) |
 | `RETRIEVE_QUERIES` | queries per question (default 6) |
 | `RETRIEVE_CANDIDATES` | candidates per retriever (default 50) |
+| `RETRIEVE_AUTO_MERGE` | expand to whole chunk groups (default true) |
 | `RRF_K` | RRF constant (default 30) |
 | `CONTEXT_CHUNKS` | chunks per query after reranking (default 15) |
 

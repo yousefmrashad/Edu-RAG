@@ -45,7 +45,7 @@ async def search(
     embedder: TeiEmbedder,
     reranker: TeiReranker,
 ) -> list[Chunk]:
-    """Run every query, expand, rerank, and return the deduplicated union."""
+    """Run every query, optionally expand, rerank, and return the union."""
     vectors = await embedder.embed_queries(
         [(query.query, query.instruction) for query in queries]
     )
@@ -53,8 +53,11 @@ async def search(
     merged: dict[uuid.UUID, Chunk] = {}
     for query, vector in zip(queries, vectors, strict=True):
         hits = await _hybrid(session, query.query, vector, owner_id)
-        expanded = await _auto_merge(session, hits)
-        for chunk in await _rerank(reranker, query.query, expanded):
+        if settings.retrieve_auto_merge:
+            candidates = await _auto_merge(session, hits)
+        else:
+            candidates = [hit.chunk for hit in hits]
+        for chunk in await _rerank(reranker, query.query, candidates):
             merged.setdefault(chunk.id, chunk)
     return list(merged.values())
 
@@ -99,7 +102,7 @@ async def _hybrid(
     fused = union_all(
         select(vec.c.id, vec.c.r),
         select(kw.c.id, kw.c.r),
-    ).subquery()
+    ).subquery("fusion")
     score = func.sum(1.0 / (settings.rrf_k + fused.c.r)).label("score")
     stmt = (
         select(fused.c.id, score)

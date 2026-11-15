@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     chunk_size: int = 512
     retrieve_queries: int = 6
     retrieve_candidates: int = 50
+    retrieve_auto_merge: bool = True
     rrf_k: int = 30
     context_chunks: int = 15
 
