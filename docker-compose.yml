@@ -1,0 +1,87 @@
+name: edu-rag
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_USER: edu
+      POSTGRES_PASSWORD: edu
+      POSTGRES_DB: edu
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "edu", "-d", "edu"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: edu
+      RABBITMQ_DEFAULT_PASS: edu
+    ports: ["5672:5672", "15672:15672"]
+    volumes: [rabbitmq:/var/lib/rabbitmq]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      retries: 12
+    restart: unless-stopped
+
+  # One model per container. The app tolerates an unready model (retries on 503).
+  tei-embedder:
+    image: ghcr.io/huggingface/text-embeddings-inference:latest
+    command: --model-id=microsoft/harrier-oss-v1-0.6b --max-batch-tokens=16384 --auto-truncate
+    ports: ["8081:80"]
+    volumes: [hf-cache:/data]
+    gpus: all
+    restart: unless-stopped
+
+  tei-reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:latest
+    command: --model-id=mixedbread-ai/mxbai-rerank-base-v2 --max-batch-tokens=8192
+    ports: ["8082:80"]
+    volumes: [hf-cache:/data]
+    gpus: all
+    restart: unless-stopped
+
+  api:
+    build: { context: ., target: api }
+    env_file:
+      # Optional: local overrides. Values here are overridden by `environment`.
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://edu:edu@postgres:5432/edu
+      CELERY_BROKER_URL: amqp://edu:edu@rabbitmq:5672//
+      EMBEDDER_URL: http://tei-embedder:80
+      RERANKER_URL: http://tei-reranker:80
+      # Interpolated from the host environment (or a local .env), not baked in.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      GENERATION_MODEL: ${GENERATION_MODEL:-}
+    ports: ["8000:8000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+
+  worker-ingest:
+    build: { context: ., target: ingest }
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://edu:edu@postgres:5432/edu
+      CELERY_BROKER_URL: amqp://edu:edu@rabbitmq:5672//
+      EMBEDDER_URL: http://tei-embedder:80
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    deploy:
+      replicas: 2
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  rabbitmq:
+  hf-cache:

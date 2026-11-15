@@ -1,76 +1,176 @@
-# Edu-RAG: Educational Retrieval-Augmented Generation System
+<h1 align="center">📚 Edu-RAG</h1>
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.13%2B-blue.svg" alt="Python: 3.13+" />
+  <img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/pgvector-4169E1?logo=postgresql&logoColor=white" alt="pgvector" />
+  <img src="https://img.shields.io/badge/TEI-000000?logo=huggingface&logoColor=FFD21E" alt="TEI" />
+  <img src="https://img.shields.io/badge/License-GPLv3-orange.svg" alt="License: GPL v3" />
+</p>
 
-A RAG system for training and education that processes authoritative documents and generates structured educational content with proper citations.
+A retrieval-augmented generation service for educational content. It ingests
+documents, chunks and embeds them, retrieves the passages that answer a question,
+and streams a cited answer.
 
-## Overview
+## How it works
 
-Edu-RAG transforms PDF documents into a queryable knowledge base and generates comprehensive educational lessons.
+**Ingest** — a Celery worker parses an uploaded document with docling, chunks it
+with `HybridChunker`, embeds the chunks with the TEI embedder, and writes them to
+Postgres. The document row is the queue: `uploaded` → `processing` → `ready`.
 
-## Key Features
+**Retrieval** — the API asks the language model for a small set of search
+queries, embeds each with its own instruction, and runs vector + full-text
+search. The two ranked lists are fused with reciprocal rank fusion (RRF). When
+most of a 4- or 16-chunk group is already retrieved, the whole group is pulled
+in, and the expanded set is reranked per query.
 
-- **Document Processing**: Automated PDF loading, chunking, and embedding generation
-- **Vector Storage**: Weaviate database for efficient similarity search
-- **Hybrid Retrieval**: Combines vector similarity and keyword search with re-ranking
-- **Educational Content Generation**: Structured lessons with proper citations using Google Gemini
-- **Streaming Output**: Real-time content generation with concurrent file writing
+**Generation** — the fused chunks are numbered and inserted into the prompt. The
+answer streams over SSE; a final event carries the citations resolved from the
+`[n]` markers.
 
-## Quick Start
+## Stack
 
-1. **Setup Database Connection**
-```python
-from utils.db_config import DB
-from preprocessing.embedding import Embedding
+| Layer | Choice |
+|---|---|
+| API | FastAPI, Server-Sent Events |
+| Storage | PostgreSQL 18 + pgvector |
+| Queue | Celery + RabbitMQ |
+| Parsing | docling + RapidOCR (Paddle, PP-OCRv6) |
+| Embeddings | `microsoft/harrier-oss-v1-0.6b` via TEI |
+| Reranking | `mixedbread-ai/mxbai-rerank-base-v2` via TEI |
+| Generation | OpenRouter |
 
-client = DB().connect()
-embed = Embedding()
+## Quick start
+
+You need Docker with the Compose plugin, and an NVIDIA GPU with the container
+toolkit: both TEI containers request `gpus: all` and run a CUDA image. Together
+they use a few GB of VRAM. The `latest` tag is the Ampere 8.0 build; use the
+tag for your card (`86-1.9` for Ampere 8.6, `89-1.9` for Ada, ...) or
+`cpu-latest` to run without a GPU.
+
+```bash
+cp .env.example .env
+# fill in OPENROUTER_API_KEY and GENERATION_MODEL
+docker compose up -d postgres rabbitmq
+docker compose run --rm api alembic upgrade head   # first run only
+docker compose up -d
 ```
 
-2. **Process Documents**
-```python
-from preprocessing.document import DocumentProcessor
+The last step starts Postgres, RabbitMQ, both TEI containers, the API, and the
+ingest worker. The API listens on `http://localhost:8000`; RabbitMQ's
+management UI is on `http://localhost:15672` (`edu` / `edu`). [API](#api) has a
+request that goes from upload to streamed answer.
 
-doc = DocumentProcessor(doc_url, doc_title)
-doc.process_document(embed, client)
+The migration creates the `vector` extension and the three tables, so
+`alembic upgrade head` is the only schema step.
+
+## Local development
+
+Run the infrastructure in Docker and the app on the host:
+
+```bash
+docker compose up -d postgres rabbitmq tei-embedder tei-reranker
+uv sync --extra ingest
+alembic upgrade head
+uvicorn edu_rag.api:app --reload
+celery -A edu_rag.celery_app:app worker -Q ingest --concurrency=1
 ```
 
-3. **Create RAG Chain**
-```python
-from rag.weaviate_retriever import Retriever
-from langchain_google_genai import GoogleGenerativeAI
-
-retriever = Retriever(client, embed).as_retriever()
-llm = GoogleGenerativeAI(model=LLM_MODEL_NAME)
-rag_chain = create_retrieval_chain(retriever, question_answer_chain)
-```
-
-4. **Generate Educational Content**
-```python
-async for chunk in rag_chain.astream({"input": query}):
-  if "answer" in chunk:
-    print(chunk["answer"], end="", flush=True)
-```
-
-## System Architecture
-
-The system consists of three main packages:
-
-- **`preprocessing`**: Document loading, chunking, and embedding generation
-- **`retrieval`**: Vector similarity search and context retrieval
-- **`utils`**: Database management and system configuration
+`--extra ingest` is what the worker needs (docling, Paddle); the API itself
+only needs the core dependencies. Both processes read `.env`, which points at
+`localhost`.
 
 ## Configuration
 
-Key configuration parameters are defined in [`utils/config.py`](https://github.com/yousefmrashad/Edu-RAG/blob/master/src/utils/config.py):
+Copy `.env.example` to `.env`. The values that matter:
 
-- `EMBEDDING_MODEL_NAME`: Qwen3-Embedding-0.6B for text vectorization
-- `LLM_MODEL_NAME`: Google Gemini 2.5 Pro for content generation
-- `CHUNK_SIZE`: 256 tokens per document chunk
-- `DB_NAME`: "Edu-RAG" Weaviate collection name
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | `postgresql+psycopg://...` |
+| `CELERY_BROKER_URL` | RabbitMQ |
+| `EMBEDDER_URL` / `RERANKER_URL` | TEI containers |
+| `OPENROUTER_API_KEY` | generation |
+| `GENERATION_MODEL` | OpenRouter model id |
+| `LLM_REQUESTS_PER_MINUTE` | local request shaping (default 30) |
+| `RETRIEVE_QUERIES` | queries per question (default 6) |
+| `RETRIEVE_CANDIDATES` | candidates per retriever (default 50) |
+| `RETRIEVE_AUTO_MERGE` | expand to whole chunk groups (default true) |
+| `RRF_K` | RRF constant (default 30) |
+| `CONTEXT_CHUNKS` | chunks per query after reranking (default 15) |
+| `MAX_UPLOAD_BYTES` | upload cap (default 100 MiB) |
+| `GENERATION_STALE_AFTER_SECONDS` | cutoff for dead generations (default 900) |
 
-## Example Output
+## API
 
-The system generates structured educational lessons with proper citations, automatically saved to markdown files like [`phishing_lesson.md`](https://github.com/yousefmrashad/Edu-RAG/blob/master/src/phishing_lesson.md).
+Every route except `/health` requires `X-Owner-Id: <uuid>`. There is no local
+auth: the caller is trusted and the header selects the tenant.
 
-**Notes**
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/documents` | upload (`file`, optional `title`), queues ingest |
+| `GET` | `/documents` | list, newest first |
+| `GET` | `/documents/{id}` | one document |
+| `POST` | `/generations` | stream one answer |
+| `GET` | `/generations` | list, newest first |
+| `GET` | `/generations/{id}` | read a finished answer |
+| `GET` | `/health` | liveness |
 
-The complete pipeline is demonstrated in [`src/pipeline.ipynb`](https://github.com/yousefmrashad/Edu-RAG/blob/master/src/pipeline.ipynb) which serves as both documentation and a runnable example.The system includes duplicate detection to skip already processed documents and uses hybrid chunking with metadata preservation for optimal retrieval performance.
+### End to end
+
+`lesson.pdf` is any file docling handles — PDF, DOCX, HTML, Markdown, images.
+
+```bash
+OWNER=$(python -c "import uuid; print(uuid.uuid4())")
+
+# 1. Upload. 201 with the document id, or 200 if the same bytes already exist.
+curl -s -X POST http://localhost:8000/documents \
+  -H "X-Owner-Id: $OWNER" \
+  -F "file=@lesson.pdf" \
+  -F "title=Lesson 1"
+
+# 2. Poll until status is "ready" (uploaded -> processing -> ready).
+curl -s http://localhost:8000/documents/<document-id> -H "X-Owner-Id: $OWNER"
+
+# 3. Ask. -N disables curl's output buffering, which SSE needs.
+curl -N -X POST http://localhost:8000/generations \
+  -H "X-Owner-Id: $OWNER" \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What is phishing?"}'
+```
+
+The response to step 3 is `text/event-stream` and carries `X-Generation-Id` in
+its headers (`curl -D -` prints them):
+
+```
+event: generation
+data: {"id": "9b1e..."}
+
+event: delta
+data: {"text": "Phishing is"}
+
+event: delta
+data: {"text": " a social-engineering attack."}
+
+event: citations
+data: {"citations": [{"index": 1, "chunk_id": "...", "document_id": "...", "ordinal": 4, "headings": ["Phishing"], "page_start": 2, "page_end": 2, "text": "..."}]}
+```
+
+The events are `generation` (the id), `delta` (answer text), and `citations`
+(last). A failure ends the stream with `error` instead; the row is marked
+`failed` and `GET /generations/{id}` returns it.
+
+## Project layout
+
+```
+src/edu_rag/
+  api/            # FastAPI app, SSE generation
+  clients/        # TEI and OpenRouter clients
+  prompts/        # query generation and answer prompts
+  retriever/      # query generation, hybrid search, citations
+  workers/        # Celery ingest worker
+  celery_app.py
+  config.py
+  db.py
+  models.py
+  tokenizer.py
+migrations/       # Alembic
+```
