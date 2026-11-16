@@ -36,7 +36,7 @@ answer streams over SSE; a final event carries the citations resolved from the
 | Queue | Celery + RabbitMQ |
 | Parsing | docling + RapidOCR (Paddle, PP-OCRv6) |
 | Embeddings | `microsoft/harrier-oss-v1-0.6b` via TEI |
-| Reranking | `mixedbread-ai/mxbai-rerank-base-v2` via TEI |
+| Reranking | `Alibaba-NLP/gte-reranker-modernbert-base` via TEI |
 | Generation | OpenRouter |
 
 ## Quick start

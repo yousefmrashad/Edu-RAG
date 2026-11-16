@@ -39,7 +39,7 @@ services:
 
   tei-reranker:
     image: ghcr.io/huggingface/text-embeddings-inference:latest
-    command: --model-id=mixedbread-ai/mxbai-rerank-base-v2 --max-batch-tokens=8192
+    command: --model-id=Alibaba-NLP/gte-reranker-modernbert-base --max-batch-tokens=8192 --auto-truncate
     ports: ["8082:80"]
     volumes: [hf-cache:/data]
     gpus: all
