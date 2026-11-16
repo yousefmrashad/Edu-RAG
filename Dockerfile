@@ -5,6 +5,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.13.7 /uv /bin/uv
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
     HOME=/home/app \
+    UV_CACHE_DIR=/root/.cache/uv \
     PATH="/app/.venv/bin:$PATH"
 
 RUN useradd --create-home --uid 10001 app

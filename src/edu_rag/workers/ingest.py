@@ -15,10 +15,11 @@ import uuid
 from collections.abc import Iterator
 from functools import lru_cache
 from io import BytesIO
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import cast
 
 from docling.datamodel.base_models import (
+    ConversionStatus,
     DocumentStream,
     FormatToExtensions,
     InputFormat,
@@ -74,7 +75,14 @@ def _converter() -> DocumentConverter:
     """
     options = PdfPipelineOptions()
     options.do_ocr = True
-    options.ocr_options = RapidOcrOptions(backend="paddle", lang=["en"])
+    options.ocr_options = RapidOcrOptions(
+        backend="paddle",
+        lang=["en"],
+        # RapidOCR defaults to downloading into its installed package, which
+        # the non-root runtime user cannot write. Keep the checkpoints under
+        # the worker's home instead.
+        rapidocr_params={"Global.model_root_dir": str(Path.home() / "rapidocr")},
+    )
     return DocumentConverter(
         allowed_formats=ALLOWED_FORMATS,
         format_options={
@@ -178,6 +186,12 @@ def ingest_document(document_id: str) -> None:
                     name=_stream_name(document), stream=BytesIO(document.content)
                 )
             )
+            # A page-level failure (OCR, layout, timeout) is recorded on the
+            # result rather than raised. Treat it as a failed ingest instead of
+            # silently indexing whatever pages happened to succeed.
+            if result.status is not ConversionStatus.SUCCESS:
+                details = "; ".join(error.error_message for error in result.errors)
+                raise RuntimeError(f"conversion {result.status.value}: {details}")
             # HybridChunker yields DocChunk; the ABC widens it to BaseChunk.
             chunks = cast(list[DocChunk], list(_chunker().chunk(result.document)))
             vectors = _embed([chunk.text for chunk in chunks])
