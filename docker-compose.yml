@@ -31,7 +31,7 @@ services:
   # One model per container. The app tolerates an unready model (retries on 503).
   tei-embedder:
     image: ghcr.io/huggingface/text-embeddings-inference:latest
-    command: --model-id=microsoft/harrier-oss-v1-0.6b --max-batch-tokens=16384 --auto-truncate
+    command: --model-id=microsoft/harrier-oss-v1-0.6b --max-batch-tokens=16384 --max-client-batch-size=64 --auto-truncate
     ports: ["8081:80"]
     volumes: [hf-cache:/data]
     gpus: all
@@ -39,7 +39,7 @@ services:
 
   tei-reranker:
     image: ghcr.io/huggingface/text-embeddings-inference:latest
-    command: --model-id=Alibaba-NLP/gte-reranker-modernbert-base --max-batch-tokens=8192 --auto-truncate
+    command: --model-id=Alibaba-NLP/gte-reranker-modernbert-base --max-batch-tokens=8192 --max-client-batch-size=64 --auto-truncate
     ports: ["8082:80"]
     volumes: [hf-cache:/data]
     gpus: all
