@@ -27,6 +27,10 @@ ingest = [
     "docling>=2.150.0",
     "paddlepaddle>=3.3",
     "tokenizers>=0.21",
+    # Direct so the pytorch-cpu source below applies: uv does not honour
+    # sources for transitive dependencies, and docling pulls both in.
+    "torch",
+    "torchvision",
 ]
 
 [build-system]
@@ -39,6 +43,17 @@ dev = [
     "ruff>=0.15",
     "basedpyright>=1.31",
 ]
+
+# PyTorch's default Linux wheel pulls the CUDA stack, but the ingest worker only
+# ever runs docling's layout model. The CPU wheel drops ~15 nvidia-* packages.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+torchvision = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 # --------------------------------------------------------------------- #
 # Lint / format
